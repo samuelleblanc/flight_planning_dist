@@ -1,0 +1,7 @@
+include README.MD
+include flight_planning/arc.ico
+include flight_planning/aeronet_locations.txt
+include flight_planning/labels.txt
+include flight_planning/profiles.txt
+include flight_planning/sat.tle
+include flight_planning/file.rc

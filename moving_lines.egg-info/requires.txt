@@ -1,0 +1,14 @@
+numpy
+matplotlib
+mpl_toolkits.basemap
+datetime
+scipy.misc
+PIL
+Tkinter
+xlwings
+Pysolar<0.7,>=0.6
+simplekml
+gpxpy
+owslib
+pykml
+ephem
