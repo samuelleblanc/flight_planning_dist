@@ -52,8 +52,8 @@ import PIL
 import re, copy
 import ephem
 
-import urllib2
-import pykml, simplekml
+import urllib2, socket, _socket, _ssl, _elementtree
+import pykml, simplekml, pyexpat
 import gpxpy, gpxpy.gpx
 
 import map_utils as mu
@@ -65,7 +65,7 @@ import tkSimpleDialog, tkFileDialog, tkMessageBox
 import owslib, owslib.wms, owslib.util
 from xlwings import Range, Sheet, Workbook
 import Pysolar, Pysolar.solar
-import win32com, win32com.client, win32com.client
+import win32com, win32com.client
 import FileDialog
 import six, six.moves
 
