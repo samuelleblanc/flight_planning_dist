@@ -304,8 +304,7 @@ class LineBuilder:
             lon0,lat0 = self.m(x0,y0,inverse=True)
             lon,lat = self.m(x,y,inverse=True)
             r = spherical_dist([lat0,lon0],[lat,lon])
-            deg = bearing([lat0,lon0],[lat,lon])
-            return 'Lon=%.7f, Lat=%.7f, d=%.2f km, bearing:%.1'%(lon,lat,r,deg)
+            return 'Lon=%.7f, Lat=%.7f, d=%.2f km'%(lon,lat,r)
         else:
             x0,y0 = self.xy
             self.r = sqrt((x-x0)**2+(y-y0)**2)
