@@ -5,6 +5,8 @@ import numpy as np
 from xlwings import Range
 import Pysolar.solar as sol
 from datetime import datetime
+from scipy import interpolate
+import write_utils as wu
 
 import map_interactive as mi
 from map_interactive import pll
@@ -83,11 +85,12 @@ class dict_position:
                  UTC_conversion=+1.0,alt0=0.0,
                  verbose=False,filename=None,datestr=None,
                  newsheetonly=False,name='P3 Flight path',sheet_num=1,color='red',
-                 profile=None):
+                 profile=None,campaign='None',version='v0.8beta'):
 
         if profile:
             lon0,lat0,UTC_start = profile['Start_lon'],profile['Start_lat'],profile['UTC_start']
-            UTC_conversion,alt0,name = profile['UTC_conversion'],profile['start_alt'],profile['Plane_name']
+            UTC_conversion,alt0,name,campaign = profile['UTC_conversion'],profile['start_alt'],profile['Plane_name'],profile['Campaign']
+        self.__version__ = version
         self.comments = [' ']
         self.lon = np.array([pll(lon0)])
         self.lat = np.array([pll(lat0)])
@@ -109,7 +112,7 @@ class dict_position:
         self.sza = self.lon*0.0
         self.azi = self.lon*0.0
         self.datetime = self.lon*0.0
-	self.speed_kts = self.speed*1.94384449246
+        self.speed_kts = self.speed*1.94384449246
         self.alt_kft = self.alt*3.28084/1000.0
         self.head = self.legt
         self.color = color
@@ -117,6 +120,7 @@ class dict_position:
         self.netkml = None
         self.verbose = verbose
         self.name = name
+        self.campaign = campaign
         self.platform = self.check_platform(name)
         print 'Using platform data for: %s' %self.platform
 
@@ -213,8 +217,9 @@ class dict_position:
         self.cumdist_nm = self.dist_nm.cumsum()
         self.cumlegt = np.nan_to_num(self.legt).cumsum()
         
-	self.datetime = self.calcdatetime()
-	self.sza,self.azi = mu.get_sza_azi(self.lat,self.lon,self.datetime)
+        self.datetime = self.calcdatetime()
+        self.sza,self.azi = mu.get_sza_azi(self.lat,self.lon,self.datetime)
+        self.azi = [a+360.0 for a in self.azi]
         
         self.time2xl()
 
@@ -709,7 +714,13 @@ class dict_position:
         top_line.autofit()
         Range('G2:J2').number_format = 'hh:mm'
         Range('U1').value = self.datestr
+        Range('V1').value = self.campaign
+        Range('W1').value = 'Created with'
+        Range('W2').value = 'moving_lines'
+        Range('W3').value = self.__version__
         Range('U:U').autofit('c')
+        Range('V:V').autofit('c')
+        Range('W:W').autofit('c')
         #Range('A2').value = np.arange(50).reshape((50,1))+1
         return wb
 
@@ -755,7 +766,7 @@ class dict_position:
         """
         import simplekml
         from xlwings import Sheet
-	if not filename:
+        if not filename:
             raise NameError('filename not defined')
             return
         if not self.netkml:
@@ -767,12 +778,12 @@ class dict_position:
             filenamenet = filename+'_net.kml'
             self.netkml.save(filenamenet)
             self.kml = simplekml.Kml(open=1)
-	for j in xrange(Sheet.count()):
+        for j in xrange(Sheet.count()):
             self.switchsheet(j)
-	    self.name = Sheet(j+1).name
-	    self.check_xl()
-	    self.calculate()
-	    self.kmlfolder = self.kml.newfolder(name=self.name)
+            self.name = Sheet(j+1).name
+            self.check_xl()
+            self.calculate()
+            self.kmlfolder = self.kml.newfolder(name=self.name)
             #self.kml.document = simplekml.Folder(name = self.name)
             self.print_points_kml(self.kmlfolder)
             self.print_path_kml(self.kmlfolder,color=self.color,j=j)
@@ -785,14 +796,16 @@ class dict_position:
         """
         print the points saved in lat, lon
         """
+        from excel_interface import get_curdir
         if not self.kml:
             raise NameError('kml not initilaized')
             return
         for i in xrange(self.n):
             pnt = folder.newpoint()
-            pnt.name = 'WP \# %i' % self.WP[i]
+            pnt.name = 'WP # {}'.format(self.WP[i])
             pnt.coords = [(self.lon[i],self.lat[i])]
-	    pnt.description = """UTC[H]=%2.2f\nLocal[H]=%2.2f\nCumDist[km]=%f\nspeed[m/s]=%4.2f\ndelayT[min]=%f\nSZA[deg]=%3.2f\nAZI[deg]=%3.2f\nComments:%s""" % (self.utc[i],self.local[i],self.cumdist[i],
+            pnt.style.iconstyle.icon.href = get_curdir()+'//map_icons//number_{}.png'.format(self.WP[i])
+            pnt.description = """UTC[H]=%2.2f\nLocal[H]=%2.2f\nCumDist[km]=%f\nspeed[m/s]=%4.2f\ndelayT[min]=%f\nSZA[deg]=%3.2f\nAZI[deg]=%3.2f\nComments:%s""" % (self.utc[i],self.local[i],self.cumdist[i],
                                                                    self.speed[i],self.delayt[i],self.sza[i],
                                                                    self.azi[i],self.comments[i])
 
@@ -853,6 +866,52 @@ class dict_position:
         fp.write(f.to_xml())
         fp.close()
         print 'GPX file saved to:'+filename      
+		
+    def save2ict(self,filepath=None):
+        'Program to save the flight track as simulated ict file. Similar to what is returned from flights'
+        if not filepath:
+            print '** no filepath selected, returning without saving **'
+            return
+        
+        dict_in = {'Start_UTC':{'original_data':self.utc*3600.0,'unit':'seconds from midnight UTC','long_description':'time keeping'},
+                   'Latitude':{'original_data':self.lat,'unit':'Degrees (North positive)','long_description':'Planned latitude position of the aircraft','format':'4.9f'},
+                   'Longitude':{'original_data':self.lon,'unit':'Degrees (East positive)','long_description':'Planned longitude position of the aircraft','format':'4.9f'},
+                   'Altitude':{'original_data':self.alt,'unit':'meters (above sea level)','long_description':'Planned altitude of the aircraft','format':'5.0f'},
+                   'speed':{'original_data':self.speed,'unit':'meters per second (m/s)','long_description':'Estimated speed of aircraft'},
+                   'SZA':{'original_data':self.sza,'unit':'degrees from zenith','long_description':'Elevation position of the sun in the sky per respect to zenith'},
+                   'AZI':{'original_data':self.azi,'unit':'degrees from north','long_description':'Azimuthal position of the sun in the sky per respect to north'}}
+        d_dict = self.interp_points_for_ict(dict_in)
+        hdict = {'PI':'Samuel LeBlanc',
+                 'Institution':'NASA Ames Research Center',
+                 'Instrument':'Simulated flight plan',
+                 'campaign':self.campaign,
+                 'special_comments':'Simulated aircraft data from flight plan',
+                 'PI_contact':'Samuel LeBlanc, samuel.leblanc@nasa.gov',
+                 'platform':self.platform,
+                 'location':'N/A',
+                 'instrument_info':'None',
+                 'data_info':'Compiled with flight planner: moving lines {version}'.format(version=self.__version__),
+                 'uncertainty':'Undefined',
+                 'DM_contact':'See PI',
+                 'project_info':self.campaign,
+                 'stipulations':'None',
+                 'rev_comments':"""  RA: First iteration of the flight plan"""}
+        order = ['Latitude','Longitude','Altitude','speed','SZA','AZI']
+        wu.write_ict(hdict,d_dict,filepath=filepath+'//',
+                     data_id='{}-Flt-plan'.format(self.campaign),loc_id=self.platform,date=self.datestr,rev='RA',order=order)
+        
+    def interp_points_for_ict(self,dict_in,dt=60.0):
+        'Program to interpolate between the waypoints to have a consistent time, defined by dt (defaults to 60 seconds), the variables to be interpolated is defined by dict_in'
+        utcs = np.arange(self.utc[0]*3600,self.utc[-1]*3600,dt)
+        # create a dict of points using the input dict as a basis, requires it to have the original_data key for each dict entry
+        # should be replaced by a interpolator that uses great circles
+        for k in dict_in.keys():
+            if k=='Start_UTC': 
+                dict_in[k]['data'] = utcs
+            else:
+                fx = interpolate.interp1d(self.utc*3600,dict_in[k]['original_data'],bounds_error=False)
+                dict_in[k]['data'] = fx(utcs)
+        return dict_in      
 
     def utc2datetime(self,utc):
         'Program to convert the datestr and utc to valid datetime class'
@@ -899,3 +958,12 @@ def populate_ex_arr(filename=None,colorcycle=['red','blue','green']):
         arr.append(ex.dict_position(filename=filename,sheet_num=i+1,color=colorcycle[i]))
     return arr
 
+def get_curdir():
+    'Program that gets the path of the script: for use in finding extra files'
+    from os.path import dirname, realpath
+    from sys import argv
+    if __file__:
+        path = dirname(realpath(__file__))
+    else:
+        path = dirname(realpath(argv[0]))
+    return path

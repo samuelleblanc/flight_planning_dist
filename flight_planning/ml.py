@@ -47,7 +47,7 @@ import Tkinter as tk
 import numpy as np
 from mpl_toolkits.basemap import Basemap
 import datetime
-import scipy, scipy.misc, scipy.special, scipy.integrate
+#import scipy, scipy.misc, scipy.special, scipy.integrate
 import PIL
 import re, copy
 import ephem
@@ -70,7 +70,7 @@ import FileDialog
 import six, six.moves
 
 
-__version__ = 'v0.7beta'
+__version__ = 'v0.8beta'
 
 def Get_basemap_profile():
     'Program to load profile dict basemap values'
@@ -186,6 +186,8 @@ def build_buttons(ui,lines,vertical=True):
                             command=g.gui_save2kml)
     g.bsave2gpx = tk.Button(g.root,text='Save to GPX',
                             command=g.gui_save2gpx)
+    g.bsave2ict = tk.Button(g.root,text='Save to ICT',
+			    command=g.gui_save2ict)
     g.refresh.pack(in_=ui.top,side=side,fill=tk.X,pady=8)
     tk.Label(g.root,text='File options').pack(in_=ui.top,side=side) 
     g.bopenfile.pack(in_=ui.top,side=side)
@@ -194,6 +196,7 @@ def build_buttons(ui,lines,vertical=True):
     g.bsaveas2kml.pack(in_=ui.top,side=side)
     g.bsave2kml.pack(in_=ui.top,side=side)
     g.bsave2gpx.pack(in_=ui.top,side=side)
+    g.bsave2ict.pack(in_=ui.top,side=side)
     tk.Frame(g.root,height=h,width=w,bg='black',relief='sunken'
              ).pack(in_=ui.top,side=side,padx=8,pady=5)
     tk.Label(g.root,text='Other plots').pack(in_=ui.top,side=side)
@@ -289,8 +292,20 @@ def stopandquit():
     lines.ex.wb.close()
     ui.root.quit()
     ui.root.destroy()
+    
+def goto_cwd():
+    'Program that changes the current directory to the path of the script: for use in finding extra files'
+    from os.path import dirname, realpath
+    from os import chdir
+    from sys import argv
+    if __file__:
+        path = dirname(realpath(__file__))
+    else:
+        path = dirname(realpath(argv[0]))
+    chdir(path)
 
 def Create_interaction(test=False,profile=None,**kwargs):
+    goto_cwd()
     ui = Create_gui()
     ui.tb.set_message('Creating basemap')
     profile = Get_basemap_profile()
@@ -312,7 +327,7 @@ def Create_interaction(test=False,profile=None,**kwargs):
         
     get_datestr(ui)
     ui.tb.set_message('making the Excel connection')
-    wb = ex.dict_position(datestr=ui.datestr,color=line.get_color(),profile=profile,**kwargs)
+    wb = ex.dict_position(datestr=ui.datestr,color=line.get_color(),profile=profile,version=__version__,**kwargs)
     ui.tb.set_message('Building the interactivity on the map')
     lines = mi.LineBuilder(line,m=m,ex=wb,tb=ui.tb,blit=True)
     ui.tb.set_message('Saving temporary excel file')
@@ -333,5 +348,5 @@ def Create_interaction(test=False,profile=None,**kwargs):
     return lines,ui
 
 if __name__ == "__main__":
-    lines,ui = Create_interaction(test=False)
+    lines,ui = Create_interaction(test=True)
 

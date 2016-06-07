@@ -8,7 +8,7 @@ import re
 import copy
 
 import map_interactive as mi
-from map_utils import spherical_dist,equi,shoot
+from map_utils import spherical_dist,equi,shoot,bearing
 
 class LineBuilder:
     """
@@ -152,7 +152,11 @@ class LineBuilder:
             self.line.axes.format_coord = self.format_position_distance
             ilola = -2
         self.line.set_data(self.xs, self.ys)
-        self.line.range_circles,self.line.range_cir_anno = self.plt_range_circles(self.lons[ilola],self.lats[ilola])
+        if self.ex:
+            self.azi = self.ex.azi[ilola+1]
+        else:
+            self.azi = None
+        self.line.range_circles,self.line.range_cir_anno = self.plt_range_circles(self.lons[ilola],self.lats[ilola],azi=self.azi)
         self.draw_canvas(extra_points=[self.line.range_circles,self.line.range_cir_anno])
         self.press = event.xdata,event.ydata
         if self.verbose:
@@ -300,7 +304,8 @@ class LineBuilder:
             lon0,lat0 = self.m(x0,y0,inverse=True)
             lon,lat = self.m(x,y,inverse=True)
             r = spherical_dist([lat0,lon0],[lat,lon])
-            return 'Lon=%.7f, Lat=%.7f, d=%.2f km'%(lon,lat,r)
+            deg = bearing([lat0,lon0],[lat,lon])
+            return 'Lon=%.7f, Lat=%.7f, d=%.2f km, bearing:%.1'%(lon,lat,r,deg)
         else:
             x0,y0 = self.xy
             self.r = sqrt((x-x0)**2+(y-y0)**2)
@@ -338,8 +343,8 @@ class LineBuilder:
                                 annotate(s+'%i'%i,(self.xs[i-1],self.ys[i-1])))
         self.line.figure.canvas.draw()
 
-    def plt_range_circles(self,lon,lat):
-        'program to plot range circles starting from the last point selected on the map'        
+    def plt_range_circles(self,lon,lat,azi=None):
+        'program to plot range circles starting from the last point selected on the map, with principal plane identified'        
         if self.circlesoff:
             return
         diam = [50.0,100.0,200.0,500.0,1000.0]
@@ -353,6 +358,23 @@ class LineBuilder:
             x,y = self.m(slon,slat)
             ano = self.line.axes.annotate('%i km' %(d),(x,y),color='silver')
             an.append(ano)
+        if azi:
+            slon,slat,az = shoot(lon,lat,azi,diam[-1])
+            mlon,mlat,az = shoot(lon,lat,azi+180.0,diam[-1])
+            lazi1, = self.m.plot([slon],[slat],'--*',color='grey',markeredgecolor='#BBBB00',markerfacecolor='#EEEE00',markersize=20)
+            lazi2, = self.m.plot([mlon,lon,slon],[mlat,lat,slat],'--',color='grey')
+            line.append(lazi1)
+            line.append(lazi2)
+        for deg in [0,90,180,270]:
+            dlo,dla,az = shoot(lon,lat,deg,diam[-1])
+            elo,ela,az = shoot(lon,lat,deg,diam[-1]*0.85)
+            ll, = self.m.plot([elo,dlo],[ela,dla],'-',color='grey')
+            line.append(ll)
+            for dd in [22.5,45.0,67.5]:
+                dlo,dla,az = shoot(lon,lat,deg+dd,diam[-1])
+                elo,ela,az = shoot(lon,lat,deg+dd,diam[-1]*0.93)
+                ll, = self.m.plot([elo,dlo],[ela,dla],'-',color='grey')
+                line.append(ll)
         return line,an
 
     def makegrey(self):

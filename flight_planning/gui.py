@@ -46,7 +46,7 @@ class gui:
         self.line = line
         self.flight_num = 0
         self.iactive = tk.IntVar()
-	self.iactive.set(0)
+        self.iactive.set(0)
         self.colors = ['red']
         self.colorcycle = ['red','blue','green','cyan','magenta','yellow','black','white']
         if not root:
@@ -54,7 +54,7 @@ class gui:
         else:
             self.root = root
         self.noplt = noplt
-	self.newflight_off = True
+        self.newflight_off = True
     
     def gui_file_select(self,ext='*',
                         ftype=[('Excel 1997-2003','*.xls'),('Excel','*.xlsx'),
@@ -68,7 +68,7 @@ class gui:
         Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
         filename = askopenfilename(defaultextension=ext,filetypes=ftype) # show an "Open" dialog box and return the path to the selected file
         if filename:
-	    filename = abspath(filename)
+            filename = abspath(filename)
         return filename
 
     def gui_file_save(self,ext='*',
@@ -85,6 +85,21 @@ class gui:
         filename = asksaveasfilename(defaultextension=ext,filetypes=ftype) # show an "Open" dialog box and return the path to the selected file
         filename = abspath(filename)
         return filename
+        
+    def gui_file_path(self,title='Select directory',initial_dir=None):
+        """
+        Simple gui file path select program.
+        Uses TKinter for interface, returns full path to directory
+        """
+        from Tkinter import Tk
+        from tkFileDialog import askdirectory
+        from os.path import abspath, curdir
+        Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+        if not initial_dir:
+            initial_dir = abspath(curdir)
+        filepath = askdirectory(initialdir=initial_dir,title=title) # show an "Open" dialog box and return the path to the selected file
+        filepath = abspath(filepath)
+        return filepath
 
     def make_text(self):
         k = tk.Label(self.root,text='button pressed').pack()
@@ -184,6 +199,18 @@ class gui:
         if not filename: return
         print 'Saving GPX file to :'+filename
         self.line.ex.save2gpx(filename)
+		
+    def gui_save2ict(self):
+        'Calls the save2ict excel_interface method'
+        if not self.line:
+            print 'No line object'
+            return
+        import tkMessageBox
+        tkMessageBox.showwarning('Saving one flight','Saving flight path in form of ict for:%s' %self.line.ex.name)
+        filepath = self.gui_file_path(title='Select directory to save ict file')
+        if not filepath: return
+        print 'Saving ICT file to :'+filepath
+        self.line.ex.save2ict(filepath)
         
     def gui_plotalttime(self):
         'gui function to run the plot of alt vs. time'
@@ -326,7 +353,7 @@ class gui:
                                                  lon0=self.line.ex.lon[0],lat0=self.line.ex.lat[0],
                                                  UTC_start=self.line.ex.utc[0],
                                                  UTC_conversion=self.line.ex.UTC_conversion,
-                                                 alt0=self.line.ex.alt[0]))
+                                                 alt0=self.line.ex.alt[0],version=self.line.ex.__version__))
         self.line.newline()
         self.iactive.set(self.flight_num)
         self.gui_changeflight()
@@ -356,11 +383,11 @@ class gui:
     
     def gui_changeflight(self):
         'method to switch out the active flight path that is used'
-	if self.newflight_off:
-	     import tkMessageBox
-	     tkMessageBox.showwarning('Sorry','Feature not yet implemented')
-	     return
-	self.flightselect_arr[self.iactive.get()].select()
+        if self.newflight_off:
+            import tkMessageBox
+            tkMessageBox.showwarning('Sorry','Feature not yet implemented')
+            return
+        self.flightselect_arr[self.iactive.get()].select()
         self.line.iactive = self.iactive.get()
         self.line.ex = self.line.ex_arr[self.iactive.get()]
         self.line.makegrey()
@@ -432,7 +459,7 @@ class gui:
     def gui_addpoint(self):
         'Gui button to add a point via a dialog'
         from gui import Move_point
-        m = Move_point()
+        m = Move_point(speed=self.line.ex.speed[-1])
         self.line.newpoint(m.bear,m.dist)
 
     def gui_movepoints(self):
@@ -638,16 +665,20 @@ class Move_point(tkSimpleDialog.Dialog):
         Dialog box that gets user input for point to add
     Inputs:
         tkSimple.Dialog
-        title: title of dialog box (defaults to 'New point info'
+        title: title of dialog box (defaults to 'New point info')
+        speed: (optional) speed of plane in meters/second
     Outputs:
         distance and direction of new point
     Dependencies:
         tkSimpleDialog
     MOdifications:
         written: Samuel LeBlanc, 2015-09-14, NASA Ames, Santa Cruz, CA
+        Modified: Samuel LeBlanc, 2016-06-06, NASA Ames, in Santa Cruz, CA
+                  - added the speed input for calculating the distance based on time until point.
     """
-    def __init__(self,title='New point info'):
+    def __init__(self,title='New point info',speed=None):
         import Tkinter as tk
+        self.speed = speed
         parent = tk._default_root
         tkSimpleDialog.Dialog.__init__(self,parent,title)
         pass
@@ -661,10 +692,19 @@ class Move_point(tkSimpleDialog.Dialog):
         self.ebear = tk.Entry(master)
         self.edist.grid(row=0,column=1)
         self.ebear.grid(row=1,column=1)
+        if self.speed:
+            self.speed = self.speed*3.6
+            tk.Label(master,text='or').grid(row=0,column=2)
+            tk.Label(master,text='Time [h]').grid(row=0,column=3)
+            self.etime = tk.Entry(master)
+            self.etime.grid(row=0,column=4)
         return self.edist
 
     def apply(self):
-        self.dist = float(self.edist.get())
+        try:
+            self.dist = float(self.edist.get())
+        except:
+            self.dist = float(self.speed)*float(self.etime.get())
         self.bear = float(self.ebear.get())
         return self.dist,self.bear
 
@@ -673,8 +713,16 @@ class Move_point(tkSimpleDialog.Dialog):
             self.dist = float(self.edist.get())
             self.bear = float(self.ebear.get())
         except ValueError:
-            import tkMessageBox
-            tkMessageBox.showwarning('Bad input','Can not format values, try again')
+            if self.speed:
+                try:
+                    self.time = float(self.etime.get())
+                    self.bear = float(self.ebear.get())
+                except ValueError:
+                    import tkMessageBox
+                    tkMessageBox.showwarning('Bad input','Can not format values, try again')
+            else:
+                import tkMessageBox
+                tkMessageBox.showwarning('Bad input','Can not format values, try again')
         return True
 
 class Select_profile(tkSimpleDialog.Dialog):
@@ -780,7 +828,8 @@ class Select_profile(tkSimpleDialog.Dialog):
                         'Lat_range':[self.lat0.get(),self.lat1.get()],
                         'UTC_start':float(self.start_utc.get()),
                         'UTC_conversion':float(self.utc_convert.get()),
-                        'start_alt':float(self.start_alt.get())
+                        'start_alt':float(self.start_alt.get()),
+                        'Campaign':self.pname.get()
                         }
         return self.profile
 
