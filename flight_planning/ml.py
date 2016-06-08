@@ -188,6 +188,8 @@ def build_buttons(ui,lines,vertical=True):
                             command=g.gui_save2gpx)
     g.bsave2ict = tk.Button(g.root,text='Save to ICT',
 			    command=g.gui_save2ict)
+    g.bsaveall = tk.Button(g.root,text='Save All',
+			    command=g.gui_saveall,bg='lightskyblue')
     g.refresh.pack(in_=ui.top,side=side,fill=tk.X,pady=8)
     tk.Label(g.root,text='File options').pack(in_=ui.top,side=side) 
     g.bopenfile.pack(in_=ui.top,side=side)
@@ -197,6 +199,7 @@ def build_buttons(ui,lines,vertical=True):
     g.bsave2kml.pack(in_=ui.top,side=side)
     g.bsave2gpx.pack(in_=ui.top,side=side)
     g.bsave2ict.pack(in_=ui.top,side=side)
+    g.bsaveall.pack(in_=ui.top,side=side)         
     tk.Frame(g.root,height=h,width=w,bg='black',relief='sunken'
              ).pack(in_=ui.top,side=side,padx=8,pady=5)
     tk.Label(g.root,text='Other plots').pack(in_=ui.top,side=side)
@@ -348,5 +351,5 @@ def Create_interaction(test=False,profile=None,**kwargs):
     return lines,ui
 
 if __name__ == "__main__":
-    lines,ui = Create_interaction(test=True)
+    lines,ui = Create_interaction(test=False)
 

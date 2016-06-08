@@ -204,8 +204,10 @@ class dict_position:
             #else:
             #    self.delayt[i+1] = self.delayt[i+1]+self.turn_time[i+1]
             self.climb_time[i+1] = self.calc_climb_time(self.alt[i],self.alt[i+1]) #defaults to P3 speed
-            self.legt[i+1] = (self.dist[i+1]/(self.speed[i+1]/1000.0))/3600.0 + \
-                             self.delayt[i+1]/60.0 + self.climb_time[i+1]/60.0
+            self.legt[i+1] = (self.dist[i+1]/(self.speed[i+1]/1000.0))/3600.0
+            if self.legt[i+1] < self.climb_time[i+1]/60.0:
+                self.legt[i+1] = self.climb_time[i+1]/60.0
+            self.legt[i+1] += self.delayt[i+1]/60.0
             self.utc[i+1] = self.utc[i]+self.legt[i+1]
             if not np.isfinite(self.utc[i+1]):
                 print self.utc
@@ -268,6 +270,7 @@ class dict_position:
         """
         if alt1>alt0:
             climb = True
+            if not alt1: climb = False
         else:
             climb = False
         if self.platform=='p3':
@@ -370,10 +373,12 @@ class dict_position:
                                       self.speed_kts,
                                       self.alt_kft,
                                       self.sza,
-                                      self.azi
+                                      self.azi,
+                                      self.bearing,
+                                      self.climb_time
                                       ]).T
         for i,c in enumerate(self.comments):
-            Range('S%i'%(i+2)).value = c
+            Range('U%i'%(i+2)).value = c
         Range('G2:J%i'% (self.n+1)).number_format = 'hh:mm'
         Range('E2:E%i'% (self.n+1)).number_format = '0'
         Range('B:B').autofit('c')
@@ -397,9 +402,9 @@ class dict_position:
         from xlwings import Range
         import numpy as np
         self.wb.set_current()
-        tmp = Range('A2:S%i'%(self.n+1)).value
-        tmp0 = Range('A2:S2').vertical.value
-        tmp2 = Range('B2:S2').vertical.value
+        tmp = Range('A2:U%i'%(self.n+1)).value
+        tmp0 = Range('A2:U2').vertical.value
+        tmp2 = Range('B2:U2').vertical.value
         dim = np.shape(tmp)
         if len(dim)==1:
             tmp = [tmp]
@@ -414,7 +419,7 @@ class dict_position:
         if n0>n1:
             tmp = tmp0
         if n2>n0:
-            tmp2 = Range('A2:S%i'%(n2+1)).value
+            tmp2 = Range('A2:U%i'%(n2+1)).value
             if len(np.shape(tmp2))==1:
                 tmp = [tmp2]
             else:
@@ -428,7 +433,10 @@ class dict_position:
         for i,t in enumerate(tmp):
             if len(t)<16: continue
             wp,lat,lon,sp,dt,alt,clt,utc,loc,lt,d,cd,dnm,cdnm,spkt,altk = t[0:16]
-            sza,azi,comm = t[16:19]
+            try:
+                sza,azi,bear,clbt,comm = t[16:21]
+            except:
+                sza,azi,comm = t[16:19]
             if wp > self.n:
                 num = num+1
                 self.appends(lat,lon,sp,dt,alt,clt,utc,loc,lt,d,cd,dnm,cdnm,spkt,altk,comm=comm)
@@ -471,7 +479,7 @@ class dict_position:
         Program that moves up all excel rows by one line overriding the ith line
         """
         from xlwings import Range
-        linesbelow = Range('A%i:S%i'%(i+3,self.n+1)).value
+        linesbelow = Range('A%i:U%i'%(i+3,self.n+1)).value
         n_rm = (self.n+1)-(i+3)
         linelist = False
         for j,l in enumerate(linesbelow):
@@ -487,8 +495,8 @@ class dict_position:
                 linesbelow[0] = linesbelow[0]-1
             except:
                 yup = True
-        Range('A%i:S%i'%(i+2,i+2)).value = linesbelow
-        Range('A%i:S%i'%(self.n+1,self.n+1)).clear_contents()
+        Range('A%i:U%i'%(i+2,i+2)).value = linesbelow
+        Range('A%i:U%i'%(self.n+1,self.n+1)).clear_contents()
 
     def dels(self,i):
         """
@@ -632,18 +640,26 @@ class dict_position:
         Inputs:
             filename of excel file to open
             sheet_num: what sheet to activate and load
-	outputs:
+        Outputs:
             wb: workbook instance
         Dependencies:
             xlwings
             Excel (win or mac)
+            re
+            tkSimpleDialog (for datestr)
+            datetime
         Example:
             ...
         History:
             Written: Samuel LeBlanc, 2015-08-18, NASA Ames, CA
+            Modified: Samuel LeBlanc, 2016-06-07, NASA Ames, CA
+                      - updated to handle the new excel format with climb time and bearing
+                      - added datestr checking and dialog interface
         """
         from xlwings import Workbook, Sheet, Range
         import numpy as np
+        import re
+        import tkSimpleDialog
         if not filename:
             print 'No filename found'
             return
@@ -653,9 +669,13 @@ class dict_position:
             print 'Exception found:',ie
             return
         self.name = Sheet(sheet_num).name
-	Sheet(sheet_num).activate()
-	print 'Activating sheet:%i, name:%s'%(sheet_num,Sheet(sheet_num).name)
-        self.datestr = str(Range('U1').value).split(' ')[0]
+        Sheet(sheet_num).activate()
+        print 'Activating sheet:%i, name:%s'%(sheet_num,Sheet(sheet_num).name)
+        self.datestr = str(Range('W1').value).split(' ')[0]
+        if not self.datestr:
+            self.datestr = tkSimpleDialog.askstring('Flight Date','No datestring found!\nPlease input Flight Date (yyyy-mm-dd):')
+        if not re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',self.datestr):
+            self.datestr = tkSimpleDialog.askstring('Flight Date','No datestring found!\nPlease input Flight Date (yyyy-mm-dd):')
         if not self.datestr:
             print 'No datestring found! Using todays date'
             from datetime import datetime
@@ -701,7 +721,8 @@ class dict_position:
                              'CumLegT\n[hh:mm]','UTC\n[hh:mm]','LocalT\n[hh:mm]',
                              'LegT\n[hh:mm]','Dist\n[km]','CumDist\n[km]',
                              'Dist\n[nm]','CumDist\n[nm]','Speed\n[kt]',
-                             'Altitude\n[kft]','SZA\n[deg]','AZI\n[deg]','Comments']
+                             'Altitude\n[kft]','SZA\n[deg]','AZI\n[deg]',
+                             'Bearing\n[deg]','ClimbT\n[min]','Comments']
         top_line = Range('A1').horizontal
         address = top_line.get_address(False,False)
         from sys import platform
@@ -713,14 +734,14 @@ class dict_position:
             xl.Range(address).Font.Bold = True
         top_line.autofit()
         Range('G2:J2').number_format = 'hh:mm'
-        Range('U1').value = self.datestr
-        Range('V1').value = self.campaign
-        Range('W1').value = 'Created with'
-        Range('W2').value = 'moving_lines'
-        Range('W3').value = self.__version__
-        Range('U:U').autofit('c')
-        Range('V:V').autofit('c')
+        Range('W1').value = self.datestr
+        Range('X1').value = self.campaign
+        Range('Z1').value = 'Created with'
+        Range('Z2').value = 'moving_lines'
+        Range('Z3').value = self.__version__
         Range('W:W').autofit('c')
+        Range('X:X').autofit('c')
+        Range('Z:Z').autofit('c')
         #Range('A2').value = np.arange(50).reshape((50,1))+1
         return wb
 
@@ -738,7 +759,7 @@ class dict_position:
 
     def get_datestr_from_xl(self):
         'Simple program to get the datestr from the excel spreadsheet'
-        self.datestr = str(Range('U1').value).split(' ')[0]
+        self.datestr = str(Range('W1').value).split(' ')[0]
         
     def save2txt(self,filename=None):
         """ 
@@ -747,17 +768,17 @@ class dict_position:
 	"""
 	f = open(filename,'w+')
 	f.write('#WP  Lon[+-180]  Lat[+-90]  Speed[m/s]  delayT[min]  Altitude[m]'+
-                '  CumLegT[H]  UTC[H]  LocalT[H]'+
-		'  LegT[H]  Dist[km]  CumDist[km]'+
-                '  Dist[nm]  CumDist[nm]  Speed[kt]'+
-                '  Altitude[kft]  SZA[deg]  AZI[deg]  Comments\n')
+            '  CumLegT[H]  UTC[H]  LocalT[H]'+
+            '  LegT[H]  Dist[km]  CumDist[km]'+
+            '  Dist[nm]  CumDist[nm]  Speed[kt]'+
+            '  Altitude[kft]  SZA[deg]  AZI[deg]  Bearing[deg]  Climbt[min]  Comments\n')
 	for i in xrange(self.n):
-	    f.write("""%-2i  %+2.8f  %+2.8f  %-4.2f  %-3i  %-5.1f  %-2.2f  %-2.2f  %-2.2f  %-2.2f  %-5.1f  %-5.1f  %-5.1f  %-5.1f  %-3.1f %-3.2f  %-3.1f  %-3.1f  %s  \n""" %(
+	    f.write("""%-2i  %+2.8f  %+2.8f  %-4.2f  %-3i  %-5.1f  %-2.2f  %-2.2f  %-2.2f  %-2.2f  %-5.1f  %-5.1f  %-5.1f  %-5.1f  %-3.1f %-3.2f  %-3.1f  %-3.1f  %-3.1f  %-3i  %s  \n""" %(
                     i+1,self.lon[i],self.lat[i],self.speed[i],
                            self.delayt[i],self.alt[i],self.cumlegt[i],
 			   self.utc[i],self.local[i],self.legt[i],
                            self.dist[i],self.cumdist[i],self.dist_nm[i],self.cumdist_nm[i],
-                           self.speed_kts[i],self.alt_kft[i],self.sza[i],self.azi[i],self.comments[i]))
+                           self.speed_kts[i],self.alt_kft[i],self.sza[i],self.azi[i],self.bearing[i],self.climb_time[i],self.comments[i]))
 
 
     def save2kml(self,filename=None):
@@ -805,9 +826,9 @@ class dict_position:
             pnt.name = 'WP # {}'.format(self.WP[i])
             pnt.coords = [(self.lon[i],self.lat[i])]
             pnt.style.iconstyle.icon.href = get_curdir()+'//map_icons//number_{}.png'.format(self.WP[i])
-            pnt.description = """UTC[H]=%2.2f\nLocal[H]=%2.2f\nCumDist[km]=%f\nspeed[m/s]=%4.2f\ndelayT[min]=%f\nSZA[deg]=%3.2f\nAZI[deg]=%3.2f\nComments:%s""" % (self.utc[i],self.local[i],self.cumdist[i],
+            pnt.description = """UTC[H]=%2.2f\nLocal[H]=%2.2f\nCumDist[km]=%f\nspeed[m/s]=%4.2f\ndelayT[min]=%f\nSZA[deg]=%3.2f\nAZI[deg]=%3.2f\nBearing[deg]=%3.2f\nClimbT[min]=%f\nComments:%s""" % (self.utc[i],self.local[i],self.cumdist[i],
                                                                    self.speed[i],self.delayt[i],self.sza[i],
-                                                                   self.azi[i],self.comments[i])
+                                                                   self.azi[i],self.bearing[i],self.climb_time[i],self.comments[i])
 
     def print_path_kml(self,folder,color='red',j=0):
         """
@@ -879,7 +900,8 @@ class dict_position:
                    'Altitude':{'original_data':self.alt,'unit':'meters (above sea level)','long_description':'Planned altitude of the aircraft','format':'5.0f'},
                    'speed':{'original_data':self.speed,'unit':'meters per second (m/s)','long_description':'Estimated speed of aircraft'},
                    'SZA':{'original_data':self.sza,'unit':'degrees from zenith','long_description':'Elevation position of the sun in the sky per respect to zenith'},
-                   'AZI':{'original_data':self.azi,'unit':'degrees from north','long_description':'Azimuthal position of the sun in the sky per respect to north'}}
+                   'AZI':{'original_data':self.azi,'unit':'degrees from north','long_description':'Azimuthal position of the sun in the sky per respect to north'},
+                   'Bearing':{'original_data':self.bearing,'unit':'degrees from north','long_description':'Direction of travel of the plane per respect to north'}}
         d_dict = self.interp_points_for_ict(dict_in)
         hdict = {'PI':'Samuel LeBlanc',
                  'Institution':'NASA Ames Research Center',

@@ -233,7 +233,7 @@ class gui:
             print 'Problem with loading a new figure handler'
             return
         ax1.plot(self.line.ex.cumlegt,self.line.ex.alt,'x-')
-        ax1.set_title('Altitude vs time for %s' % self.line.ex.datestr,y=1.08)
+        ax1.set_title('Altitude vs time for %s on %s' %(self.line.ex.name,self.line.ex.datestr),y=1.08)
 	fig.subplots_adjust(top=0.85,right=0.8)
 	ax1.set_xlabel('Flight duration [Hours]')
         ax1.set_ylabel('Alt [m]')
@@ -256,50 +256,61 @@ class gui:
             canvas.draw()
         else:
             plt.figure(f1.number)
+        return fig
 
     def gui_plotsza(self):
         'gui function to plot the solar zenith angle of the flight path'
-	#import tkMessageBox
-	#tkMessageBox.showwarning('Sorry','Feature not yet implemented') 
-	#return 
-	if not self.noplt:
-	     print 'No figure handler, sorry will not work'
-	     return
-	from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-	from matplotlib.figure import Figure
-	import Tkinter as tk
-	root = tk.Toplevel()
-	root.wm_title('Alt vs. Time')
-	fig = Figure()
-	canvas = FigureCanvasTkAgg(fig, master=root)
-	canvas.show()
-	canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-	tb = NavigationToolbar2TkAgg(canvas,root)
-	tb.pack(side=tk.BOTTOM)
-	tb.update()
-	canvas._tkcanvas.pack(side=tk.TOP,fill=tk.BOTH,expand=1)
-	ax1 = fig.add_subplot(2,1,1)
-	ax1.plot(self.line.ex.cumlegt,self.line.ex.sza,'x-')
-	ax1.set_title('Solar position along flight track for %s' % self.line.ex.datestr, y=1.18)
-	fig.subplots_adjust(top=0.85)
-	#ax1.set_xlabel('Flight duration [Hours]')
-	ax1.set_ylabel('SZA [degree]')
-	#ax1.set_xticklabels(['','','','','',''])
-	ax1.grid()
-	axticks = ax1.get_xticks()
-	ax1_up = ax1.twiny()
-	ax1_up.xaxis.tick_top()
-	cum2utc = self.line.ex.utc[0]
-	ax1_up.set_xticks(axticks)
-	utc_label = ['%2.2f'%(u+cum2utc) for u in axticks]
-	ax1_up.set_xticklabels(utc_label)
-	ax1_up.set_xlabel('UTC [Hours]')
-	ax2 = fig.add_subplot(2,1,2,sharex=ax1)
-	ax2.plot(self.line.ex.cumlegt,self.line.ex.azi,'o')
-	ax2.set_ylabel('AZI [degree]')
-	ax2.set_xlabel('Flight duration [Hours]')
-	ax2.grid()
-	canvas.draw()
+        #import tkMessageBox
+        #tkMessageBox.showwarning('Sorry','Feature not yet implemented') 
+        #return 
+        if not self.noplt:
+             print 'No figure handler, sorry will not work'
+             return
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+        from matplotlib.figure import Figure
+        import Tkinter as tk
+        root = tk.Toplevel()
+        root.wm_title('Solar position vs. Time')
+        root.geometry('800x550')
+        fig = Figure()
+        canvas = FigureCanvasTkAgg(fig, master=root)
+        canvas.show()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        tb = NavigationToolbar2TkAgg(canvas,root)
+        tb.pack(side=tk.BOTTOM)
+        tb.update()
+        canvas._tkcanvas.pack(side=tk.TOP,fill=tk.BOTH,expand=1)
+        ax1 = fig.add_subplot(2,1,1)
+        ax1.plot(self.line.ex.cumlegt,self.line.ex.sza,'x-')
+        ax1.set_title('Solar position along flight track for %s on %s' %(self.line.ex.name,self.line.ex.datestr), y=1.18)
+        fig.subplots_adjust(top=0.85)
+        #ax1.set_xlabel('Flight duration [Hours]')
+        ax1.set_ylabel('SZA [degree]')
+        #ax1.set_xticklabels(['','','','','',''])
+        ax1.grid()
+        axticks = ax1.get_xticks()
+        ax1_up = ax1.twiny()
+        ax1_up.xaxis.tick_top()
+        cum2utc = self.line.ex.utc[0]
+        ax1_up.set_xticks(axticks)
+        utc_label = ['%2.2f'%(u+cum2utc) for u in axticks]
+        ax1_up.set_xticklabels(utc_label)
+        ax1_up.set_xlabel('UTC [Hours]')
+        ax2 = fig.add_subplot(2,1,2,sharex=ax1)
+        ax2.plot(self.line.ex.cumlegt,self.line.ex.azi,'ok',label='Sun PP')
+        ax2.plot(self.line.ex.cumlegt,[a-180 for a in self.line.ex.azi],'o',color='lightgrey',label='Sun anti-PP')
+        ax2.set_ylabel('Azimuth angle [degree]')
+        ax2.set_xlabel('Flight duration [Hours]')
+        ax2.grid()
+        ax2.plot(self.line.ex.cumlegt,self.line.ex.bearing,'xr',label='{} bearing'.format(self.line.ex.name))
+        box = ax1.get_position()
+        ax1.set_position([box.x0, box.y0, box.width * 0.75, box.height])
+        ax1_up.set_position([box.x0, box.y0, box.width * 0.75, box.height])
+        box = ax2.get_position()
+        ax2.set_position([box.x0, box.y0, box.width * 0.75, box.height])
+        ax2.legend(frameon=True,numpoints=1,bbox_to_anchor=[1.4,0.8])
+        canvas.draw()
+        return fig
 
     def load_flight(self,ex):
         'Program to populate the arrays of multiple flights with the info of one array'
@@ -353,7 +364,7 @@ class gui:
                                                  lon0=self.line.ex.lon[0],lat0=self.line.ex.lat[0],
                                                  UTC_start=self.line.ex.utc[0],
                                                  UTC_conversion=self.line.ex.UTC_conversion,
-                                                 alt0=self.line.ex.alt[0],version=self.line.ex.__version__))
+                                                 alt0=self.line.ex.alt[0],version=self.line.ex.__version__,campaign=self.line.ex.campaign))
         self.line.newline()
         self.iactive.set(self.flight_num)
         self.gui_changeflight()
@@ -404,7 +415,42 @@ class gui:
         filename = self.gui_file_save(ext='.png')
         if not filename: return
         print 'Use toolbar'
-
+        
+    def gui_saveall(self):
+        'gui program to run through and save all the file formats, without verbosity, for use in distribution'
+        from os import path
+        filename = self.gui_file_save(ext='*',ftype=[('Excel','*.xlsx')])
+        if not filename:
+            tkMessageBox.showwarning('Cancelled','Saving all files cancelled')
+            return
+        f_name,_ = path.splitext(filename)
+        print 'Saving Excel file to :'+f_name+'.xlsx'
+        self.line.ex.save2xl(f_name+'.xlsx')
+        print 'Saving figure file to :'+f_name+'_map.png'
+        if type(self.line.line) is list:
+            lin = self.line.line[0]
+        else:
+            lin = self.line.line
+        lin.figure.savefig(f_name+'_map.png',dpi=600,transparent=False)
+        # go through each flight path
+        for i,x in enumerate(self.line.ex_arr):
+            self.iactive.set(i)
+            self.gui_changeflight()
+            print 'Saving Text file to :'+f_name+'_{}.txt'.format(x.name)
+            self.line.ex.save2txt(f_name+'_{}.txt'.format(x.name))
+            print 'Saving ICT file to :'+path.dirname(f_name)
+            self.line.ex.save2ict(path.dirname(f_name))
+            print 'Generating the figures for {}'.format(x.name)
+            fig = self.gui_plotalttime()
+            print 'Saving the Alt vs time plot at:'+f_name+'_alt_{}.png'.format(x.name)
+            fig.savefig(f_name+'_alt_{}.png'.format(x.name),dpi=600,transparent=False)
+            fig = self.gui_plotsza()
+            print 'Saving the SZA vs time plot at:'+f_name+'_sza_{}.png'.format(x.name)
+            fig.savefig(f_name+'_sza_{}.png'.format(x.name),dpi=600,transparent=False)
+        print 'Saving kml file to :'+f_name+'.kml'
+        self.kmlfilename = f_name+'.kml'
+        self.line.ex.save2kml(filename=self.kmlfilename)
+        
     def stopandquit(self):
         'function to force a stop and quit the mainloop, future with exit of python'
         self.root.quit()

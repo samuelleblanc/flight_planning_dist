@@ -153,7 +153,10 @@ class LineBuilder:
             ilola = -2
         self.line.set_data(self.xs, self.ys)
         if self.ex:
-            self.azi = self.ex.azi[ilola+1]
+            try:
+                self.azi = self.ex.azi[ilola+1]
+            except IndexError:
+                self.azi = self.ex.azi[ilola]
         else:
             self.azi = None
         self.line.range_circles,self.line.range_cir_anno = self.plt_range_circles(self.lons[ilola],self.lats[ilola],azi=self.azi)
