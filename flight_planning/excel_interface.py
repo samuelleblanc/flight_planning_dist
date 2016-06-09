@@ -585,14 +585,16 @@ class dict_position:
             print '** Problem with index too large in mods **'
             return
         changed = False
+        compare_altk = True
+        compare_speedk = True
         self.toempty = {'speed':0,'delayt':0,'alt':0,'speed_kts':0,'alt_kft':0}
-        if not lat: lat = np.nan
-        if not lon: lon = np.nan
-        if not sp: sp = np.nan
-        if not spkt: spkt = np.nan
-        if not dt: dt = np.nan
-        if not alt: alt = np.nan
-        if not altk: altk = np.nan
+        if lat is None: lat = np.nan
+        if lon is None: lon = np.nan
+        if sp is None: sp = np.nan
+        if spkt is None: spkt = np.nan
+        if dt is None: dt = np.nan
+        if alt is None: alt = np.nan
+        if altk is None: altk = np.nan
         if self.lat[i] != lat:
             self.lat[i] = lat
             changed = True
@@ -603,9 +605,10 @@ class dict_position:
             if np.isfinite(sp):
                 self.speed[i] = sp
                 self.toempty['speed_kts'] = 1
+                compare_speedk = False
                 changed = True
         if self.speed_kts[i] != spkt:
-            if np.isfinite(spkt):
+            if np.isfinite(spkt)&compare_speedk:
                 self.speed_kts[i] = spkt
                 self.toempty['speed'] = 1
                 changed = True
@@ -617,9 +620,10 @@ class dict_position:
             if np.isfinite(alt):
                 self.alt[i] = alt
                 self.toempty['alt_kft'] = 1
+                compare_altk = False
                 changed = True
         if self.alt_kft[i] != altk:
-            if np.isfinite(altk):
+            if np.isfinite(altk)&compare_altk:
                 self.alt_kft[i] = altk
                 self.toempty['alt'] = 1
                 changed = True
@@ -658,8 +662,6 @@ class dict_position:
         """
         from xlwings import Workbook, Sheet, Range
         import numpy as np
-        import re
-        import tkSimpleDialog
         if not filename:
             print 'No filename found'
             return
@@ -672,6 +674,15 @@ class dict_position:
         Sheet(sheet_num).activate()
         print 'Activating sheet:%i, name:%s'%(sheet_num,Sheet(sheet_num).name)
         self.datestr = str(Range('W1').value).split(' ')[0]
+        self.verify_datestr()
+        self.campaign = str(Range('X1').value).split(' ')[0]
+        self.verify_campaign()
+        return wb
+        
+    def verify_datestr(self):
+        'Verify the input datestr is correct'
+        import re
+        import tkSimpleDialog
         if not self.datestr:
             self.datestr = tkSimpleDialog.askstring('Flight Date','No datestring found!\nPlease input Flight Date (yyyy-mm-dd):')
         if not re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',self.datestr):
@@ -680,7 +691,11 @@ class dict_position:
             print 'No datestring found! Using todays date'
             from datetime import datetime
             self.datestr = datetime.utcnow().strftime('%Y-%m-%d')
-        return wb
+            
+    def verify_campaign(self):
+        'verify the input campaign value'
+        import tkSimpleDialog
+        self.campaign = tkSimpleDialog.askstring('Campaign name','Please verify campaign name:',initialvalue=self.campaign)
 
     def Create_excel(self,name='P3 Flight path',newsheetonly=False):
         """
@@ -890,10 +905,12 @@ class dict_position:
 		
     def save2ict(self,filepath=None):
         'Program to save the flight track as simulated ict file. Similar to what is returned from flights'
+        from datetime import datetime
         if not filepath:
             print '** no filepath selected, returning without saving **'
             return
-        
+        dt = 60 #seconds
+        # setup data dict
         dict_in = {'Start_UTC':{'original_data':self.utc*3600.0,'unit':'seconds from midnight UTC','long_description':'time keeping'},
                    'Latitude':{'original_data':self.lat,'unit':'Degrees (North positive)','long_description':'Planned latitude position of the aircraft','format':'4.9f'},
                    'Longitude':{'original_data':self.lon,'unit':'Degrees (East positive)','long_description':'Planned longitude position of the aircraft','format':'4.9f'},
@@ -902,12 +919,15 @@ class dict_position:
                    'SZA':{'original_data':self.sza,'unit':'degrees from zenith','long_description':'Elevation position of the sun in the sky per respect to zenith'},
                    'AZI':{'original_data':self.azi,'unit':'degrees from north','long_description':'Azimuthal position of the sun in the sky per respect to north'},
                    'Bearing':{'original_data':self.bearing,'unit':'degrees from north','long_description':'Direction of travel of the plane per respect to north'}}
-        d_dict = self.interp_points_for_ict(dict_in)
+        d_dict = self.interp_points_for_ict(dict_in,dt=dt) 
+        # setup header dict
         hdict = {'PI':'Samuel LeBlanc',
                  'Institution':'NASA Ames Research Center',
                  'Instrument':'Simulated flight plan',
                  'campaign':self.campaign,
-                 'special_comments':'Simulated aircraft data from flight plan',
+                 'time_interval':dt,
+                 'now':datetime.strptime(self.datestr,'%Y-%m-%d'),
+                 'special_comments':'Simulated aircraft data interpolated from flight plan waypoints',
                  'PI_contact':'Samuel LeBlanc, samuel.leblanc@nasa.gov',
                  'platform':self.platform,
                  'location':'N/A',
@@ -918,9 +938,9 @@ class dict_position:
                  'project_info':self.campaign,
                  'stipulations':'None',
                  'rev_comments':"""  RA: First iteration of the flight plan"""}
-        order = ['Latitude','Longitude','Altitude','speed','SZA','AZI']
+        order = ['Latitude','Longitude','Altitude','speed','Bearing','SZA','AZI']
         wu.write_ict(hdict,d_dict,filepath=filepath+'//',
-                     data_id='{}-Flt-plan'.format(self.campaign),loc_id=self.platform,date=self.datestr,rev='RA',order=order)
+                     data_id='{}-Flt-plan'.format(self.campaign),loc_id=self.platform,date=self.datestr.replace('-',''),rev='RA',order=order)
         
     def interp_points_for_ict(self,dict_in,dt=60.0):
         'Program to interpolate between the waypoints to have a consistent time, defined by dt (defaults to 60 seconds), the variables to be interpolated is defined by dict_in'

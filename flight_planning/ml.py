@@ -176,7 +176,7 @@ def build_buttons(ui,lines,vertical=True):
                           bg='chartreuse')
     g.bopenfile = tk.Button(g.root,text='Open Excel file',
                             command=g.gui_open_xl)
-    g.bsavexl = tk.Button(g.root,text='Save Excel file',
+    g.bsavexl = tk.Button(g.root,text='Save',
                           command=g.gui_save_xl)
     g.bsavetxt = tk.Button(g.root,text='Save text file',
                           command=g.gui_save_txt)
@@ -192,8 +192,10 @@ def build_buttons(ui,lines,vertical=True):
 			    command=g.gui_saveall,bg='lightskyblue')
     g.refresh.pack(in_=ui.top,side=side,fill=tk.X,pady=8)
     tk.Label(g.root,text='File options').pack(in_=ui.top,side=side) 
-    g.bopenfile.pack(in_=ui.top,side=side)
-    g.bsavexl.pack(in_=ui.top,side=side)
+    g.frame_xl = tk.Frame(g.root,relief=tk.SUNKEN)
+    g.frame_xl.pack(in_=ui.top,side=side,fill=tk.BOTH)
+    g.bopenfile.pack(in_=g.frame_xl,side=tk.RIGHT,padx=4,pady=2,fill=tk.BOTH)
+    g.bsavexl.pack(in_=g.frame_xl,side=tk.LEFT,padx=4,pady=2,fill=tk.BOTH)
     g.bsavetxt.pack(in_=ui.top,side=side)
     g.bsaveas2kml.pack(in_=ui.top,side=side)
     g.bsave2kml.pack(in_=ui.top,side=side)
@@ -239,7 +241,7 @@ def build_buttons(ui,lines,vertical=True):
     g.movepoints.pack(in_=ui.top,padx=5,pady=2)
     tk.Frame(g.root,height=h,width=w,bg='black',relief='sunken'
              ).pack(in_=ui.top,side=side,padx=8,pady=5)
-    tk.Label(g.root,text='Extra info:').pack(in_=ui.top,side=side)
+    #tk.Label(g.root,text='Extra info:').pack(in_=ui.top,side=side)
     g.baddsat = tk.Button(g.root,text='Add Satellite tracks',
                          command = g.gui_addsat_tle)
     g.baddsat.pack(in_=ui.top)
@@ -292,6 +294,7 @@ def init_plot(m,start_lon='14 38.717E',start_lat='22 58.783S',color='red'):
 
 def stopandquit():
     'simple function to handle the stop and quit'
+    lines.ex.wb.save()
     lines.ex.wb.close()
     ui.root.quit()
     ui.root.destroy()

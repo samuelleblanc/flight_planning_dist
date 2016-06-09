@@ -188,6 +188,7 @@ class gui:
             self.load_flight(self.line.ex)
         self.line.line.figure.canvas.draw()
         self.line.connect()
+        self.flight_num = len(self.line.ex_arr)-1
 
     def gui_save2gpx(self):
         'Calls the save2gpx excel_interface method'
